@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+username=$( whoami )
+
+##
+# command line arguments
+ycsb_args="--num=10000000 --workloads=l,c --threads=40 --fieldlength=8 --fieldcount=1 --num_regions=2 --num_shards=64 --num_workers=16 --mem_size=256000000 --dram_limit=1024000000 --distribution=zipfian --write_stats_to_file=0"
+opt_debug="OFF"
+opt_iul="ON"
+opt_verbose_log="OFF"
+for arg in "$@"; do
+  if [ "${arg,,}" == "debug" ]; then
+    opt_debug="ON"
+  elif [ "${arg,,}" == "wal" ]; then
+    opt_iul="OFF"
+  elif [ "${arg,,}" == "VERBOSE" ]; then
+    opt_verbose_log="ON"
+  else
+    ycsb_args="${ycsb_args} ${arg}"
+  fi
+done
+
+##
+# build
+cd ../build
+cmake -DDEBUG=${opt_debug} -DVERBOSE_LOG=${opt_verbose_log} -DIUL=${opt_iul} .. 
+cmake --build . -- -j
+cd -
+ycsb=../build/ycsb
+
+./clear_db.sh
+if [ "$opt_debug" == "ON" ]; then
+  gdb $ycsb -ex "r ${ycsb_args}"  # *** DEBUG ***
+else
+  $ycsb $ycsb_args  # *** RUN ***
+fi
